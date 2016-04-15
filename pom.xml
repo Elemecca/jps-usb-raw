@@ -1,0 +1,71 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                      http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.hifiremote</groupId>
+  <artifactId>jps-usb-raw</artifactId>
+  <packaging>jar</packaging>
+  <version>0.1-SNAPSHOT</version>
+
+  <name>JP1 USB Raw Interface</name>
+  <description>
+    Provides an interface for manipulating the settings file on
+    univeral remotes manufactured by UEI which have USB interfaces,
+    such as the URC-6440 and OARUSB04G. UEI programmable remotes are
+    colloquially referred to as "JP1 remotes" as their older models
+    were programmed via a 6-pin header labelled JP1. The newer models
+    supported by this project expose a USB mass storage device with a
+    FAT12 filesytem containing the binary settings blob as a file.
+    Unfortunately the remote does not implement FAT completely or
+    correctly and therefore only works with the Windows implementation.
+    This project allows remotes with that issue to be programmed on
+    Linux by bypassing the kernel's FAT implementation and interacting
+    with the block device directly.
+  </description>
+
+  <url>http://github.com/Elemecca/jps-usb-raw</url>
+  <scm>
+    <url>http://github.com/Elemecca/jps-usb-raw</url>
+    <connection>scm:git:git://github.com/Elemecca/jps-usb-raw.git</connection>
+    <developerConnection>scm:git:ssh://github.com/Elemecca/jps-usb-raw.git</developerConnection>
+  </scm>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.usb4java</groupId>
+      <artifactId>usb4java-javax</artifactId>
+      <version>1.2.0</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>2.4.3</version>
+
+        <configuration>
+          <shadedArtifactAttached>true</shadedArtifactAttached>
+        </configuration>
+
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+    </plugins>
+  </build>
+</project>
