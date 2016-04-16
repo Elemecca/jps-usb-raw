@@ -14,7 +14,11 @@ import javax.usb.UsbInterfaceDescriptor;
 import javax.usb.UsbPort;
 import javax.usb.UsbException;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+
 class JpsUsbRaw {
+    private static Logger log = LogManager.getLogger();
 
     private static String makeDevicePath (UsbDevice device)
     throws UsbException {
@@ -34,17 +38,23 @@ class JpsUsbRaw {
         for (UsbDevice device : (List<UsbDevice>) hub.getAttachedUsbDevices()) {
             UsbDeviceDescriptor desc = device.getUsbDeviceDescriptor();
 
-            System.out.println( String.format(
-                    "dev %s vnd=%04x:%04x dev=%04x:%04x class=%02x",
-                    makeDevicePath( device ),
-                    desc.idVendor(), 0x06e7,
-                    desc.idProduct(), 0x8020,
-                    desc.bDeviceClass()
-                ));
-
+            if (log.isTraceEnabled()) {
+                log.trace( String.format(
+                        "saw USB device vnd=%04x dev=%04x path=%s",
+                        desc.idVendor(), desc.idProduct(),
+                        makeDevicePath( device )
+                    ));
+            }
 
             if (desc.idVendor() == (short)0x06e7 && desc.idProduct() == (short)0x8020) {
-                System.out.println( "  => MATCH" );
+                if (log.isDebugEnabled()) {
+                    log.debug( String.format(
+                            "matched USB device vnd=%04x dev=%04x path=%s",
+                            desc.idVendor(), desc.idProduct(),
+                            makeDevicePath( device )
+                        ));
+                }
+
                 results.add( device );
             }
 
@@ -56,11 +66,12 @@ class JpsUsbRaw {
 
     public static List<UsbDevice> getDevices()
     throws UsbException {
+        log.debug("searching for supported USB devices...");
         UsbHub rootHub = UsbHostManager.getUsbServices().getRootUsbHub();
         List<UsbDevice> devices = new ArrayList<UsbDevice>();
         searchDevices( devices, rootHub );
 
-        System.out.println( "count: " + devices.size() );
+        log.debug("found " + devices.size() + " devices");
         return devices;
     }
 }
