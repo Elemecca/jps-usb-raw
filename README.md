@@ -1,5 +1,22 @@
 
+#### Linux
 
+Fortunately libusb already works just fine on Linux, and we can take
+control of USB devices away from the platform drivers just by asking.
+If you want to be able to write to your remote without being root
+(*strongly* recommended), you need to make sure that your user has
+write access to the device. First make sure your user is a member of
+the `dialout` group, then install the following snippet as
+`/etc/udev/rules.d/80-jps-usb-raw.rules`. That file provides rules
+for the device manager that ask it to make UEI remote devices available
+to the `dialout` group. If your remote is alreay plugged in, you'll
+need to unplug it and plug it back in for the new rules to take effect.
+
+```udev
+# /etc/udev/rules.d/80-jps-usb-raw.rules
+# Allow 'dialout' group access to UEI universal remotes with USB interfaces.
+SUBSYSTEM=="usb", ATTR{idVendor}=="06e7", ATTR{idProduct}=="8020", MODE="0660", GROUP="dialout"
+```
 
 ### Reference Documentation
 

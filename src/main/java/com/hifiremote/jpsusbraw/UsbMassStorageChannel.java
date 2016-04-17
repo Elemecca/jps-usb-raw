@@ -10,6 +10,7 @@ import javax.usb.UsbConfiguration;
 import javax.usb.UsbConst;
 import javax.usb.UsbDevice;
 import javax.usb.UsbEndpoint;
+import javax.usb.UsbEndpointDescriptor;
 import javax.usb.UsbException;
 import javax.usb.UsbInterface;
 import javax.usb.UsbInterfaceDescriptor;
@@ -17,6 +18,9 @@ import javax.usb.UsbInterfacePolicy;
 import javax.usb.UsbIrp;
 import javax.usb.UsbPipe;
 import javax.usb.UsbStallException;
+
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 /** NIO FileChannel implementation for USB Mass Storage devices.
  *
@@ -28,6 +32,8 @@ import javax.usb.UsbStallException;
  */
 class UsbMassStorageChannel
 extends SimpleFileChannel {
+    private static final Logger log = LogManager.getLogger();
+
     private final UsbDevice device;
     private final UsbInterface iface;
     private final UsbPipe pipeIn;
@@ -44,10 +50,30 @@ extends SimpleFileChannel {
         for (UsbInterface cand : (List<UsbInterface>) config.getUsbInterfaces()) {
             UsbInterfaceDescriptor desc = cand.getUsbInterfaceDescriptor();
 
-            if (desc.bInterfaceClass() == 0x8 // Mass Storage
-                    && desc.bInterfaceSubClass() == 0x6 // SCSI
-                    && desc.bInterfaceProtocol() == 0x80 // Bulk-Only
+            if (log.isTraceEnabled()) {
+                log.trace( String.format(
+                        "saw interface num=%02x alt=%02x"
+                            + " class=%02x subclass=%02x proto=%02x",
+                        desc.bInterfaceNumber(),
+                        desc.bAlternateSetting(),
+                        desc.bInterfaceClass(),
+                        desc.bInterfaceSubClass(),
+                        desc.bInterfaceProtocol()
+                    ));
+            }
+
+            if (desc.bInterfaceClass() == (byte)0x08 // Mass Storage
+                    && desc.bInterfaceSubClass() == (byte)0x06 // SCSI
+                    && desc.bInterfaceProtocol() == (byte)0x50 // Bulk-Only
                     ) {
+                if (log.isDebugEnabled()) {
+                    log.debug( String.format(
+                            "matched interface num=%02x alt=%02x",
+                            desc.bInterfaceNumber(),
+                            desc.bAlternateSetting()
+                        ));
+                }
+
                 foundIface = cand;
                 break;
             }
@@ -61,14 +87,34 @@ extends SimpleFileChannel {
         // locate the in and out bulk endpoints
         UsbEndpoint endIn = null, endOut = null;
         for (UsbEndpoint cand : (List<UsbEndpoint>) iface.getUsbEndpoints()) {
+            if (log.isTraceEnabled()) {
+                UsbEndpointDescriptor desc = cand.getUsbEndpointDescriptor();
+                log.trace( String.format(
+                        "saw endpoint addr=%02x attr=%02x",
+                        desc.bEndpointAddress(),
+                        desc.bmAttributes()
+                    ));
+            }
+
             if (cand.getType() == UsbConst.ENDPOINT_TYPE_BULK) {
                 if (cand.getDirection() == UsbConst.ENDPOINT_DIRECTION_IN
                         && endIn == null) {
+                    log.debug( String.format(
+                            "matched IN endpoint %02x",
+                            cand.getUsbEndpointDescriptor().bEndpointAddress()
+                        ));
+
                     endIn = cand;
                     if (endOut != null) break;
                 }
 
-                if (cand.getDirection() == UsbConst.ENDPOINT_DIRECTION_OUT) {
+                if (cand.getDirection() == UsbConst.ENDPOINT_DIRECTION_OUT
+                        && endOut == null) {
+                    log.debug( String.format(
+                            "matched OUT endpoint %02x",
+                            cand.getUsbEndpointDescriptor().bEndpointAddress()
+                        ));
+
                     endOut = cand;
                     if (endIn != null) break;
                 }
@@ -92,20 +138,31 @@ extends SimpleFileChannel {
                 }
             } );
         } catch (UsbException caught) {
-            throw new IOException( "error claiming interface", caught );
+            throw new IOException(
+                    "error claiming interface: " + caught.getMessage(),
+                    caught
+                );
         }
 
         try {
             pipeIn.open();
         } catch (UsbException caught) {
-            throw new IOException( "error opening IN pipe", caught );
+            throw new IOException(
+                    "error opening IN pipe: " + caught.getMessage(),
+                    caught
+                );
         }
 
         try {
             pipeOut.open();
         } catch (UsbException caught) {
-            throw new IOException( "error opening OUT pipe", caught );
+            throw new IOException(
+                    "error opening OUT pipe: " + caught.getMessage(),
+                    caught
+                );
         }
+
+        log.debug( "successfully initialized USB Mass Storage device" );
     }
 
     private void clearPipe (UsbPipe pipe)
