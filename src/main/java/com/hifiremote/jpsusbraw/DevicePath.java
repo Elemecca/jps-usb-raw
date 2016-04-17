@@ -12,4 +12,8 @@ public class DevicePath {
     public String toString() {
         return Arrays.toString( path );
     }
+
+    public byte[] toArray() {
+        return Arrays.copyOf( path, path.length );
+    }
 }
