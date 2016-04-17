@@ -1,4 +1,4 @@
-package com.hifiremote.jpsusbraw.impl;
+package com.hifiremote.jpsusbraw;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
