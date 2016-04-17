@@ -19,6 +19,7 @@ class DevicePathBuilder {
         if (level <= 0)
             throw new IllegalStateException("level may not be negative");
 
+        path[ level ] = 0;
         level--;
     }
 
