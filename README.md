@@ -27,3 +27,4 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="06e7", ATTR{idProduct}=="8020", MODE="0660", 
   - Chapter 9 for details on device states and configuration
 - [USB Mass Storage Overview](http://www.usb.org/developers/docs/devclass_docs/Mass_Storage_Specification_Overview_v1.4_2-19-2010.pdf)
 - [USB Mass Storage Bulk Only](http://www.usb.org/developers/docs/devclass_docs/usbmassbulk_10.pdf)
+- [Seagate SCSI Command Reference](http://www.seagate.com/staticfiles/support/disc/manuals/Interface%20manuals/100293068c.pdf)

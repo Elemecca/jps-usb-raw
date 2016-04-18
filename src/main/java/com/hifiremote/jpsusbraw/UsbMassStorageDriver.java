@@ -19,6 +19,7 @@ import javax.usb.UsbInterfacePolicy;
 import javax.usb.UsbIrp;
 import javax.usb.UsbPipe;
 import javax.usb.UsbStallException;
+import javax.usb.util.UsbUtil;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
@@ -201,8 +202,10 @@ implements Closeable {
         clearPipe( pipeOut );
     }
 
-    private void sendCommand (ByteBuffer command, ByteBuffer data, boolean in)
-    throws UsbException {
+    public void sendCommand (ByteBuffer command, ByteBuffer data, boolean in)
+    throws IOException {
+        log.trace( "preparing to send command" );
+
         if (command == null)
             throw new IllegalArgumentException("command may not be null");
 
@@ -218,6 +221,8 @@ implements Closeable {
         // write a random tag to dCBWTag
         final int tag = rand.nextInt();
         cbw.putInt( 4, tag );
+        if (log.isTraceEnabled())
+            log.trace( String.format( "selected tag %08x", tag ));
 
         if (data != null) {
             // store length in dCBWDataTransferLength
@@ -225,14 +230,36 @@ implements Closeable {
 
             // store direction in bmCBWFlags
             cbw.put( 12, (byte)(in ? 0x80 : 0x00) );
+
+            if (log.isTraceEnabled()) {
+                log.trace( String.format(
+                        "requesting transfer %s of %d bytes",
+                        (in ? "IN" : "OUT"), data.remaining()
+                    ));
+            }
         }
 
         // store command size in bCBWCBLength
         cbw.put( 14, (byte) command.remaining() );
 
         // store command in CBWCB
+        command.mark();
         cbw.position( 15 );
         cbw.put( command );
+
+        if (log.isTraceEnabled()) {
+            command.reset();
+            int cmdLen = command.remaining();
+            byte[] cmdArr = new byte[ cmdLen ];
+            command.get( cmdArr );
+
+            log.trace( String.format(
+                    "sending %d-byte command %s",
+                    cmdLen, UsbUtil.toHexString( " ", cmdArr )
+                ));
+
+            log.trace( "sending CBW " + UsbUtil.toHexString( " ", cbw.array() ) );
+        }
 
 
         UsbIrp cbwIrp = pipeOut.createUsbIrp();
@@ -244,7 +271,7 @@ implements Closeable {
         if (data != null) {
             dataIrp = (in ? pipeIn : pipeOut).createUsbIrp();
             dataIrp.setData( data.array(), data.position(), data.remaining() );
-            dataIrp.setAcceptShortPacket( false );
+            dataIrp.setAcceptShortPacket( true );
         }
 
 
@@ -257,25 +284,63 @@ implements Closeable {
 
 
         try {
+            log.trace( "sending CBW IRP" );
             pipeOut.syncSubmit( cbwIrp );
         } catch (UsbStallException caught) {
+            log.warn( "device STALLed on CBW" );
             // BBB 6.6.1 - the CBW is not valid
             // BBB 5.3.1 - host must perform Reset Recovery
             // TODO: implement async reset recovery
+            throw new UnsupportedOperationException( "Reset Recovery not yet implemented" );
+        } catch (UsbException caught) {
+            log.error( "CBW IRP failed", caught );
+            throw new IOException(
+                    "error sending command: " + caught.getMessage(),
+                    caught
+                );
         }
 
         if (dataIrp != null) try {
+            log.trace( "sending data IRP" );
             (in ? pipeIn : pipeOut).syncSubmit( dataIrp );
+            log.trace( "received data " + UsbUtil.toHexString( " ", dataIrp.getData() ) );
         } catch (UsbStallException caught) {
+            log.warn( "device STALLed on data; continuing to read CSW" );
             // BBB 6.7.2 host 3 - clear the Bulk-In pipe and read CSW
             // BBB 6.7.3 host 3 - clear the Buld-Out pipe and read CSW
-            clearPipe( in ? pipeIn : pipeOut );
+            try {
+                clearPipe( in ? pipeIn : pipeOut );
+            } catch (UsbException caught2) {
+                log.error( "clearing pipe after data stall failed", caught2 );
+                throw new IOException(
+                        "error recovering from issue sending data: "
+                            + caught2.getMessage(),
+                        caught2
+                    );
+            }
+        } catch (UsbException caught) {
+            log.error( "data IRP failed", caught );
+            throw new IOException(
+                    "error " + (in ? "receiving" : "sending") + " data",
+                    caught
+                );
         }
 
         try {
+            log.trace( "sending CSW IRP" );
             pipeIn.syncSubmit( cswIrp );
         } catch (UsbStallException caught) {
-            clearPipe( pipeIn );
+            log.warn( "device STALLed on first CSW read, retrying" );
+            try {
+                clearPipe( pipeIn );
+            } catch (UsbException caught2) {
+                log.error( "clearing pipe after CSW stall failed", caught2 );
+                throw new IOException(
+                        "error recovering from issue reading status: "
+                            + caught2.getMessage(),
+                        caught2
+                    );
+            }
 
             cswIrp = pipeIn.createUsbIrp();
             cswIrp.setData( csw.array() );
@@ -283,20 +348,43 @@ implements Closeable {
 
             try {
                 pipeIn.syncSubmit( cswIrp );
-            } catch (UsbStallException caughtAgain) {
+            } catch (UsbStallException caught2) {
+                log.warn( "device STALLed on second CSW read" );
                 // BBB fig 2 - host must perform Reset Recovery
                 // TODO: implement async reset recovery
+                throw new UnsupportedOperationException( "Reset Recovery not yet implemented" );
+            } catch (UsbException caught2) {
+                log.error( "second CSW IRP failed", caught );
+                throw new IOException(
+                        "error reading status: " + caught2.getMessage(),
+                        caught2
+                    );
             }
+        } catch (UsbException caught) {
+            log.error( "first CSW IRP failed", caught );
+            throw new IOException(
+                    "error reading status: " + caught.getMessage(),
+                    caught
+                );
         }
+
+        if (log.isTraceEnabled())
+            log.trace( "received CSW " + UsbUtil.toHexString( " ", csw.array() ) );
 
         // check static signature in dCSWSignature
         if (csw.getInt( 0 ) != 0x53425355) {
+            log.warn( "CSW signature invalid" );
             // BBB fig 2 - host must perform Reset Recovery
             // TODO: implement async reset recovery
+            throw new UnsupportedOperationException( "Reset Recovery not yet implemented" );
         }
 
         // check dCSWTag matches value from CDW
         if (csw.getInt( 4 ) != tag) {
+            log.warn( String.format(
+                    "CSW tag mismatch: expected %08x got %08x",
+                    tag, csw.getInt( 4 )
+                ));
             // BBB fig 2 - host must perform Reset Recovery
             // TODO: implement async reset recovery
         }
@@ -304,16 +392,23 @@ implements Closeable {
         // advance the data buffer position by the number of
         // valid bytes transferred from dCSWDataResidue
         if (data != null) {
+            if (log.isTraceEnabled())
+                log.trace( "data position after read: " + data.position() );
+
             data.position( data.position()
                     + data.remaining() // the amount we expected to move
                     - csw.getInt( 8 ) // the part of that which wasn't moved
                 );
+
+            if (log.isTraceEnabled())
+                log.trace( "adjusted data position: " + data.position() );
         }
 
         // check the status in bCSWStatus
         final byte status = csw.get( 12 );
         switch (status) {
         case 0x00: // Command Passed
+            log.trace( "command completed successfully" );
             break;
 
         case 0x01: // Command Failed
@@ -322,7 +417,7 @@ implements Closeable {
         case 0x02: // Phase Error
             // BBB 5.3.3.1 - host must perform Reset Recovery
             // TODO: implement async reset recovery
-            break;
+            throw new UnsupportedOperationException( "Reset Recovery not yet implemented" );
 
         default:
             throw new RuntimeException( "unknown CSW status " + status );
