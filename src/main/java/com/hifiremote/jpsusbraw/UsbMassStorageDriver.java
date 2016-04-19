@@ -203,17 +203,17 @@ implements Closeable {
     }
 
 
-    public void sendCommand (ByteBuffer command)
+    public boolean sendCommand (ByteBuffer command)
     throws IOException {
-        sendCommand( command, null, 0, false );
+        return sendCommand( command, null, 0, false );
     }
 
-    public void sendCommand (ByteBuffer command, ByteBuffer data, boolean in)
+    public boolean sendCommand (ByteBuffer command, ByteBuffer data, boolean in)
     throws IOException {
-        sendCommand( command, data, data.remaining(), in );
+        return sendCommand( command, data, data.remaining(), in );
     }
 
-    public void sendCommand (ByteBuffer command,
+    public boolean sendCommand (ByteBuffer command,
             ByteBuffer data, int dataLength, boolean in)
     throws IOException {
         log.trace( "preparing to send command" );
@@ -443,10 +443,11 @@ implements Closeable {
         switch (status) {
         case 0x00: // Command Passed
             log.trace( "command completed successfully" );
-            break;
+            return true;
 
         case 0x01: // Command Failed
-            throw new RuntimeException( "command failed" );
+            log.trace( "command failed" );
+            return false;
 
         case 0x02: // Phase Error
             // BBB 5.3.3.1 - host must perform Reset Recovery

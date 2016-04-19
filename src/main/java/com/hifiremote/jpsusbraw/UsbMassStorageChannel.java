@@ -35,7 +35,7 @@ extends SimpleFileChannel {
         cbd.put( 0, (byte) 0x25 ); // READ CAPACITY (10)
         cbd.put( 4, (byte) data.remaining() ); // ALLOCATION LENGTH
 
-        driver.sendCommand( cbd, data, true );
+        sendCommand( cbd, data, true );
         blockCount = data.getInt( 0 );
         blockSize  = data.getInt( 4 );
 
@@ -56,6 +56,36 @@ extends SimpleFileChannel {
         return blockCount * blockSize;
     }
 
+
+    public void sendCommand (ByteBuffer command)
+    throws IOException {
+        sendCommand( command, null, 0, false );
+    }
+
+    public void sendCommand (ByteBuffer command, ByteBuffer data, boolean in)
+    throws IOException {
+        sendCommand( command, data, data.remaining(), in );
+    }
+
+    private void sendCommand (ByteBuffer command,
+            ByteBuffer data, int dataLength, boolean in)
+    throws IOException {
+        boolean ok = driver.sendCommand( command, data, dataLength, in );
+        if (ok) return;
+
+        log.trace( "command failed, sending REQUEST SENSE" );
+        ByteBuffer sense = ByteBuffer.allocate( 252 );
+        ByteBuffer cbd = ByteBuffer.allocate( 6 );
+        cbd.put( 0, (byte) 0x03 ); // REQUEST SENSE
+        cbd.put( 4, (byte) sense.capacity() ); // ALLOCATION LENGTH
+        if (!driver.sendCommand( cbd, sense, true )) {
+            log.error( "command failed and REQUEST SENSE also failed" );
+            throw new IOException(
+                    "command failed and retrieving error code also failed" );
+        }
+
+        throw new ScsiException( sense.array() );
+    }
 
     public synchronized void rawRead (ByteBuffer dst, long offset, int count)
     throws IOException {
@@ -93,7 +123,7 @@ extends SimpleFileChannel {
         cbd.putShort( 2, (short)offset ); // LOGICAL BLOCK ADDRESS
         cbd.put( 4, (byte)count );       // TRANSFER LENGTH
 
-        driver.sendCommand( cbd, dst, count * blockSize, true );
+        sendCommand( cbd, dst, count * blockSize, true );
     }
 
 
