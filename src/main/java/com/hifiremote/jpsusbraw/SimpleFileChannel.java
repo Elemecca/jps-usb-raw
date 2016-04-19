@@ -69,13 +69,19 @@ extends FileChannel {
     @Override
     public int read (ByteBuffer dst, long position)
     throws IOException {
-        if (position < 0)
-            throw new IllegalArgumentException("position may not be negative");
-
-        if (position >= this.size())
+        if (position < 0) {
+            throw new IllegalArgumentException( "position may not be negative" );
+        } else if (position >= size()) {
             return -1;
+        }
 
-        return this.implRead( dst, position );
+        if (dst == null) {
+            throw new IllegalArgumentException( "dst may not be null" );
+        } else if (dst.remaining() == 0) {
+            return 0;
+        }
+
+        return implRead( dst, position );
     }
 
     @Override

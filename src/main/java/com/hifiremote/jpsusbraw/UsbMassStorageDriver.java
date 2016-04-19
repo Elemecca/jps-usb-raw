@@ -202,7 +202,19 @@ implements Closeable {
         clearPipe( pipeOut );
     }
 
+
+    public void sendCommand (ByteBuffer command)
+    throws IOException {
+        sendCommand( command, null, 0, false );
+    }
+
     public void sendCommand (ByteBuffer command, ByteBuffer data, boolean in)
+    throws IOException {
+        sendCommand( command, data, data.remaining(), in );
+    }
+
+    public void sendCommand (ByteBuffer command,
+            ByteBuffer data, int dataLength, boolean in)
     throws IOException {
         log.trace( "preparing to send command" );
 
@@ -211,6 +223,12 @@ implements Closeable {
 
         if (command.remaining() > 16 || command.remaining() < 1)
             throw new IllegalArgumentException("invalid command length");
+
+        if (dataLength < 0)
+            throw new IllegalArgumentException("dataLength may not be negative");
+
+        if (data != null && dataLength > data.remaining())
+            throw new IllegalArgumentException("data buffer too small");
 
         ByteBuffer cbw = ByteBuffer.allocate( 31 );
         cbw.order( ByteOrder.LITTLE_ENDIAN );
@@ -270,7 +288,7 @@ implements Closeable {
         UsbIrp dataIrp = null;
         if (data != null) {
             dataIrp = (in ? pipeIn : pipeOut).createUsbIrp();
-            dataIrp.setData( data.array(), data.position(), data.remaining() );
+            dataIrp.setData( data.array(), data.position(), dataLength );
             dataIrp.setAcceptShortPacket( true );
         }
 

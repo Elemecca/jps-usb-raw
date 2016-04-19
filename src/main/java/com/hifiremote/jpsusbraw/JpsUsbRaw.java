@@ -1,6 +1,7 @@
 package com.hifiremote.jpsusbraw;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.ArrayList;
@@ -140,5 +141,16 @@ public class JpsUsbRaw {
     private JpsUsbRaw (UsbDevice device)
     throws IOException {
         storage = new UsbMassStorageChannel( device, true );
+
+        log.debug( "reading partition table" );
+
+        ByteBuffer mbr = ByteBuffer.allocate( 512 );
+        while (mbr.remaining() > 0
+                && storage.read( mbr, mbr.position() ) > 0);
+
+        StringBuilder str = new StringBuilder();
+        str.append( "read MBR:\n" );
+        HexDump.dump( mbr.array(), 0, str, 0 );
+        log.debug( str.toString() );
     }
 }
