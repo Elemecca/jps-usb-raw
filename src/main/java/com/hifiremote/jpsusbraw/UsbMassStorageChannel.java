@@ -179,7 +179,7 @@ extends SimpleFileChannel {
     protected int implWrite (ByteBuffer src, long position)
     throws IOException {
         // TODO: implement
-        return 0;
+        throw new UnsupportedOperationException();
     }
 
     @Override

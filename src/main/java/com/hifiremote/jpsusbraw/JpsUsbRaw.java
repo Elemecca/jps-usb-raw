@@ -21,7 +21,8 @@ import javax.usb.UsbException;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 
-public class JpsUsbRaw {
+public class JpsUsbRaw
+extends SimpleFileChannel {
     private static final Logger log = LogManager.getLogger();
     private static List<DevicePath> devices = null;
 
@@ -141,6 +142,7 @@ public class JpsUsbRaw {
     private final UsbMassStorageChannel storage;
     private final int partOffset, partLength;
     private final int fileOffset, fileLength;
+    private final long fileOffsetAbs;
 
     private JpsUsbRaw (UsbDevice device)
     throws IOException {
@@ -225,6 +227,13 @@ public class JpsUsbRaw {
                 ));
         }
 
+        if (sectorSize != storage.blockSize()) {
+            throw new IOException( String.format(
+                    "FAT sector size %d is not equal to device block size %d",
+                    sectorSize, storage.blockSize()
+                ));
+        }
+
         // extract the first FAT from the system area
         // position defined in 107-6.3.2
         sys.position( reserved * sectorSize );
@@ -282,12 +291,13 @@ public class JpsUsbRaw {
         }
 
         fileOffset = (fileCluster - 2) * clusterSize + systemSize;
+        fileOffsetAbs = (partOffset + fileOffset) * sectorSize;
         fileLength = foundLength;
 
         if (log.isDebugEnabled()) {
             log.debug( String.format(
-                    "file offset=%d length=%d",
-                    fileOffset, fileLength
+                    "file offset(sectors)=%d abs_offset(bytes)=%d length(bytes)=%d",
+                    fileOffset, fileOffsetAbs, fileLength
                 ));
         }
 
@@ -352,5 +362,28 @@ public class JpsUsbRaw {
             // US-ASCII is a required encoding
             throw new RuntimeException( caught );
         }
+    }
+
+    @Override
+    public long size() {
+        return fileLength;
+    }
+
+    @Override
+    protected synchronized int implRead (ByteBuffer dst, long position)
+    throws IOException {
+        return storage.read( dst, position + fileOffsetAbs );
+    }
+
+    @Override
+    protected int implWrite (ByteBuffer src, long position)
+    throws IOException {
+        return storage.write( src, position + fileOffsetAbs );
+    }
+
+    @Override
+    protected void implCloseChannel()
+    throws IOException {
+        storage.close();
     }
 }
