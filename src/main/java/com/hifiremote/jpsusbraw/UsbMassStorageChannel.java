@@ -101,9 +101,9 @@ extends SimpleFileChannel {
         } else if (offset >= blockCount) {
             throw new IllegalArgumentException(
                     "offset is beyond end of volume" );
-        } else if (offset > 65535) {
+        } else if (offset > Math.pow(2, 32) - 1) {
             throw new UnsupportedOperationException(
-                    "only 16-bit LBAs are supported" );
+                    "only 32-bit LBAs are supported" );
         }
 
         if (count < 0) {
@@ -113,7 +113,7 @@ extends SimpleFileChannel {
         } else if (count > blockCount - offset) {
             throw new IllegalArgumentException(
                     "cannot read past end of volume" );
-        } else if (count > 65535) {
+        } else if (count > Math.pow(2, 16) - 1) {
             throw new UnsupportedOperationException(
                     "only 16-bit read lengths are supported" );
         }
@@ -127,7 +127,7 @@ extends SimpleFileChannel {
         ByteBuffer cbd = ByteBuffer.allocate( 10 );
         cbd.order( ByteOrder.BIG_ENDIAN );
         cbd.put( 0, (byte) 0x28 ); // READ (10)
-        cbd.putShort( 2, (short) offset ); // LOGICAL BLOCK ADDRESS
+        cbd.putInt( 2, (int) offset ); // LOGICAL BLOCK ADDRESS
         cbd.putShort( 7, (short) count );  // TRANSFER LENGTH
 
         sendCommand( cbd, dst, count * blockSize, true );
