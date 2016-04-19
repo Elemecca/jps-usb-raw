@@ -56,6 +56,13 @@ extends SimpleFileChannel {
         return blockCount * blockSize;
     }
 
+    public int blockCount() {
+        return blockCount;
+    }
+
+    public int blockSize() {
+        return blockSize;
+    }
 
     public void sendCommand (ByteBuffer command)
     throws IOException {

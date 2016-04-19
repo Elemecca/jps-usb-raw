@@ -2,6 +2,7 @@ package com.hifiremote.jpsusbraw;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Collections;
 import java.util.List;
 import java.util.ArrayList;
@@ -137,6 +138,7 @@ public class JpsUsbRaw {
     }
 
     private final UsbMassStorageChannel storage;
+    private final int partOffset, partLength;
 
     private JpsUsbRaw (UsbDevice device)
     throws IOException {
@@ -145,12 +147,43 @@ public class JpsUsbRaw {
         log.debug( "reading partition table" );
 
         ByteBuffer mbr = ByteBuffer.allocate( 512 );
+        mbr.order( ByteOrder.LITTLE_ENDIAN );
         while (mbr.remaining() > 0
                 && storage.read( mbr, mbr.position() ) > 0);
 
-        StringBuilder str = new StringBuilder();
-        str.append( "read MBR:\n" );
-        HexDump.dump( mbr.array(), 0, 512, str, 0 );
-        log.debug( str.toString() );
+        short signature = mbr.getShort( 0x1FE );
+        if (signature != (short) 0xAA55) {
+            throw new IOException( String.format(
+                        "invalid MBR signature 0x%04X", signature ));
+        }
+
+        byte partType = mbr.get( 0x1BE + 0x4 );
+        if (partType != (byte) 0x01) {
+            throw new IOException( String.format(
+                        "unrecognized partition type 0x%02X", partType ));
+        }
+
+        partOffset = mbr.getInt( 0x1BE + 0x8 );
+        int length = mbr.getInt( 0x1BE + 0xC );
+
+        if (log.isDebugEnabled()) {
+            log.debug( String.format(
+                    "using partition 1: offset=%d length=%d",
+                    partOffset, length
+                ));
+        }
+
+        // sometimes the partition length is set incorrectly
+        if (partOffset + length > storage.blockCount()) {
+            log.warn( String.format(
+                    "partition length %d puts end %d after"
+                        + " volume end %d, correcting to %d",
+                    length, partOffset + length, storage.blockCount(),
+                    storage.blockCount() - partOffset
+                ));
+
+            length = (int)( storage.blockCount() - partOffset );
+        }
+        partLength = length;
     }
 }
