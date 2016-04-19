@@ -31,7 +31,7 @@ import java.nio.charset.Charset;
  *
  * @version $Id$
  */
-public class HexDump {
+class HexDump {
 
     /**
      * Instances should NOT be constructed in standard programming.
@@ -58,8 +58,10 @@ public class HexDump {
      * data array are dumped.
      *
      * @param data  the byte array to be dumped
-     * @param offset  offset of the byte array within a larger entity
      * @param index initial index into the byte array
+     * @param length how many bytes to dump from the byte array
+     * @param builder the StringBuilder to which the dump should be appended
+     * @param offset  offset of the byte array within a larger entity
      *
      * @throws IOException is thrown if anything goes wrong writing
      *         the data to stream
@@ -67,25 +69,35 @@ public class HexDump {
      *         outside the data array's bounds
      * @throws IllegalArgumentException if the output stream is null
      */
-
-    public static void dump(final byte[] data, final long offset,
-                            StringBuilder builder, final int index)
-            throws IOException, ArrayIndexOutOfBoundsException,
-            IllegalArgumentException {
-
+    public static void dump(final byte[] data,
+            final int index, final int length,
+            StringBuilder builder, final long offset)
+    throws IOException {
         if (index < 0 || index >= data.length) {
             throw new ArrayIndexOutOfBoundsException(
                     "illegal index: " + index + " into array of length "
                     + data.length);
         }
-        if (builder == null) {
-            throw new IllegalArgumentException("cannot write to nullstream");
+
+        if (length < 0) {
+            throw new ArrayIndexOutOfBoundsException(
+                    "length may not be negative" );
+        } else if (length > data.length - index) {
+            throw new ArrayIndexOutOfBoundsException(
+                    "length parameter is greater than array length" );
         }
+
+        if (builder == null) {
+            throw new IllegalArgumentException("builder may not be null");
+        }
+
         long display_offset = offset + index;
+        int limit = index + length;
+
         final StringBuilder buffer = new StringBuilder(74);
 
-        for (int j = index; j < data.length; j += 16) {
-            int chars_read = data.length - j;
+        for (int j = index; j < limit; j += 16) {
+            int chars_read = limit - j;
 
             if (chars_read > 16) {
                 chars_read = 16;

@@ -150,7 +150,7 @@ public class JpsUsbRaw {
 
         StringBuilder str = new StringBuilder();
         str.append( "read MBR:\n" );
-        HexDump.dump( mbr.array(), 0, str, 0 );
+        HexDump.dump( mbr.array(), 0, 512, str, 0 );
         log.debug( str.toString() );
     }
 }

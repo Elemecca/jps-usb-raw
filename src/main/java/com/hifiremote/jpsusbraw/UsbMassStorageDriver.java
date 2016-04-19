@@ -276,7 +276,10 @@ implements Closeable {
                     cmdLen, UsbUtil.toHexString( " ", cmdArr )
                 ));
 
-            log.trace( "sending CBW " + UsbUtil.toHexString( " ", cbw.array() ) );
+            StringBuilder str = new StringBuilder();
+            str.append( "sending CBW:\n" );
+            HexDump.dump( cbw.array(), 0, cbw.limit(), str, 0 );
+            log.trace( str.toString() );
         }
 
 
@@ -321,7 +324,6 @@ implements Closeable {
         if (dataIrp != null) try {
             log.trace( "sending data IRP" );
             (in ? pipeIn : pipeOut).syncSubmit( dataIrp );
-            log.trace( "received data " + UsbUtil.toHexString( " ", dataIrp.getData() ) );
         } catch (UsbStallException caught) {
             log.warn( "device STALLed on data; continuing to read CSW" );
             // BBB 6.7.2 host 3 - clear the Bulk-In pipe and read CSW
@@ -411,15 +413,29 @@ implements Closeable {
         // valid bytes transferred from dCSWDataResidue
         if (data != null) {
             if (log.isTraceEnabled())
-                log.trace( "data position after read: " + data.position() );
+                log.trace( "data position before read: " + data.position() );
 
-            data.position( data.position()
-                    + data.remaining() // the amount we expected to move
-                    - csw.getInt( 8 ) // the part of that which wasn't moved
-                );
+            int residue = csw.getInt( 8 );
+            data.position( data.position() + dataLength - residue );
 
-            if (log.isTraceEnabled())
-                log.trace( "adjusted data position: " + data.position() );
+            if (log.isTraceEnabled()) {
+                StringBuilder str = new StringBuilder();
+                str.append( String.format(
+                        "received data length=%d residue=%d position=%d",
+                        dataLength, residue, data.position()
+                    ));
+
+                if (dataLength - residue > 0) {
+                    str.append( ":\n" );
+                    HexDump.dump( dataIrp.getData(),
+                            dataIrp.getOffset(),
+                            dataIrp.getLength() - residue,
+                            str, 0
+                        );
+                }
+
+                log.trace( str.toString() );
+            }
         }
 
         // check the status in bCSWStatus
