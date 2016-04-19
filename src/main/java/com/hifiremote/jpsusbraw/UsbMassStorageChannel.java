@@ -106,9 +106,9 @@ extends SimpleFileChannel {
         } else if (count > blockCount - offset) {
             throw new IllegalArgumentException(
                     "cannot read past end of volume" );
-        } else if (count > 256) {
+        } else if (count > 65535) {
             throw new UnsupportedOperationException(
-                    "cannot read more than 256 blocks" );
+                    "only 16-bit read lengths are supported" );
         }
 
         if (dst == null) {
@@ -117,11 +117,11 @@ extends SimpleFileChannel {
             throw new IllegalArgumentException( "dst buffer is not large enough" );
         }
 
-        ByteBuffer cbd = ByteBuffer.allocate( 6 );
+        ByteBuffer cbd = ByteBuffer.allocate( 10 );
         cbd.order( ByteOrder.BIG_ENDIAN );
-        cbd.put( 0, (byte) 0x08 ); // READ (6)
-        cbd.putShort( 2, (short)offset ); // LOGICAL BLOCK ADDRESS
-        cbd.put( 4, (byte)count );       // TRANSFER LENGTH
+        cbd.put( 0, (byte) 0x28 ); // READ (10)
+        cbd.putShort( 2, (short) offset ); // LOGICAL BLOCK ADDRESS
+        cbd.putShort( 7, (short) count );  // TRANSFER LENGTH
 
         sendCommand( cbd, dst, count * blockSize, true );
     }
