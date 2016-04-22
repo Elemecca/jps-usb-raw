@@ -29,3 +29,15 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="06e7", ATTR{idProduct}=="8020", MODE="0660", 
 - [USB Mass Storage Bulk Only](http://www.usb.org/developers/docs/devclass_docs/usbmassbulk_10.pdf)
 - [Seagate SCSI Command Reference](http://www.seagate.com/staticfiles/support/disc/manuals/Interface%20manuals/100293068c.pdf)
 - [ECMA-107 (FAT File System)](http://www.ecma-international.org/publications/standards/Ecma-107.htm)
+
+### Copying
+
+Written in 2016 by Sam Hanes <sam@maltera.com>
+
+To the extent possible under law, the author(s) have dedicated all copyright
+and related and neighboring rights to this software to the public domain
+worldwide. This software is distributed without any warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software. If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
