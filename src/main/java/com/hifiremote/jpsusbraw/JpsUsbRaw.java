@@ -421,8 +421,17 @@ extends SimpleFileChannel {
     @Override
     protected int implWrite (ByteBuffer src, long position)
     throws IOException {
-        // TODO: implement
-        throw new UnsupportedOperationException();
+        long offset = position + fileOffsetAbs;
+        long count = Math.min( src.remaining(), fileLength - position );
+
+        if (log.isTraceEnabled()) {
+            log.trace( String.format(
+                    "write requested offset=%d count=%d volOffset=%d volCount=%d",
+                    position, src.remaining(), offset, count
+                ));
+        }
+
+        return storage.write( src, offset, count );
     }
 
     @Override

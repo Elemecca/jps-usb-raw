@@ -46,6 +46,7 @@ class Main {
         final JCommander cmd = new JCommander( this );
 
         cmd.addCommand( new CommandRead() );
+        cmd.addCommand( new CommandWrite() );
 
         try {
             cmd.parse( args );
@@ -142,6 +143,8 @@ class Main {
         Configurator.initialize( builder.build() );
     }
 
+
+
     private abstract class Command {
         public JCommander cmd;
 
@@ -151,6 +154,8 @@ class Main {
         public abstract void run()
         throws Exception;
     }
+
+
 
     @Parameters( commandNames="read",
         commandDescription="read the settings from the device to a file" )
@@ -220,6 +225,81 @@ class Main {
             settings.close();
         }
     }
+
+
+
+
+    @Parameters( commandNames="write",
+        commandDescription="write the settings from a file to the device" )
+    private class CommandWrite
+    extends Command {
+        @Parameter( description="file", arity=1, required=true )
+        private List<String> files;
+
+        @Parameter( names={ "-c", "--check", "--verify" },
+                description="after writing, read back and verify the contents" )
+        private boolean verify;
+
+        public void run()
+        throws Exception {
+            if (files.size() != 1) {
+                StringBuilder builder = new StringBuilder();
+                builder.append( "exactly one file is required\n" );
+                cmd.usage( builder );
+                System.err.println( builder );
+                System.exit( 1 );
+            }
+
+            File file = new File( files.get( 0 ) );
+            if (!file.isFile()) {
+                if (file.exists()) {
+                    System.err.println( "path '" + file
+                            + "' exists but is not a file, aborting" );
+                } else {
+                    System.err.println( "file '" + file + "' does not exist" );
+                }
+                System.exit( 3 );
+            }
+
+            JpsUsbRaw settings = openDefaultDevice();
+            if (settings == null) {
+                System.err.println( "no supported device found" );
+                System.exit( 3 );
+            }
+
+            RandomAccessFile stream = new RandomAccessFile( file, "r" );
+            FileChannel channel = stream.getChannel();
+
+
+            if (channel.size() != settings.size()) {
+                System.err.println( "input file is "
+                        + channel.size() + " bytes, but settings should be "
+                        + settings.size() + " bytes"
+                    );
+                System.exit( 3 );
+            }
+
+            long offset = 0;
+            long length = channel.size();
+            while (length > 0) {
+                long count = channel.transferTo( offset, length, settings );
+                offset += count;
+                length -= count;
+            }
+
+
+            if (verify) {
+                System.out.println( "write completed, beginning verification..." );
+                verify( channel, settings, settings.blockSize() );
+                System.out.println( "verification completed successfully" );
+            }
+
+            channel.close();
+            settings.close();
+        }
+    }
+
+
 
     private JpsUsbRaw openDefaultDevice()
     throws IOException, UsbException {
