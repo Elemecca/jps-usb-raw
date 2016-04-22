@@ -21,10 +21,7 @@ import javax.usb.UsbException;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 
-/** NIO FileChannel implementation for USB Mass Storage devices.
- */
-class UsbMassStorageChannel
-extends SimpleFileChannel {
+class ScsiDriver {
     private static final Logger log = LogManager.getLogger();
 
     private static final int BUFFER_BLOCKS = 16;
@@ -33,11 +30,12 @@ extends SimpleFileChannel {
 
     private final UsbMassStorageDriver driver;
     private final int blockCount, blockSize;
+    private final long size;
     private final ByteBuffer buffer;
 
-    UsbMassStorageChannel (final UsbDevice device, final boolean force)
+    ScsiDriver (final UsbMassStorageDriver driver)
     throws IOException {
-        driver = new UsbMassStorageDriver( device, force );
+        this.driver = driver;
 
         log.trace( "reading device capacity" );
         ByteBuffer data = ByteBuffer.allocate( 8 );
@@ -49,6 +47,7 @@ extends SimpleFileChannel {
         sendCommand( cbd, data, true );
         blockCount = data.getInt( 0 );
         blockSize  = data.getInt( 4 );
+        size = blockCount * blockSize;
 
         if (log.isTraceEnabled()) {
             log.trace( String.format(
@@ -62,9 +61,8 @@ extends SimpleFileChannel {
         log.trace( "successfully initialized USB Mass Storage channel" );
     }
 
-    @Override
     public long size() {
-        return blockCount * blockSize;
+        return size;
     }
 
     public int blockCount() {
@@ -75,12 +73,12 @@ extends SimpleFileChannel {
         return blockSize;
     }
 
-    public void sendCommand (ByteBuffer command)
+    private void sendCommand (ByteBuffer command)
     throws IOException {
         sendCommand( command, null, 0, false );
     }
 
-    public void sendCommand (ByteBuffer command, ByteBuffer data, boolean in)
+    private void sendCommand (ByteBuffer command, ByteBuffer data, boolean in)
     throws IOException {
         sendCommand( command, data, data.remaining(), in );
     }
@@ -145,66 +143,86 @@ extends SimpleFileChannel {
     }
 
 
-    @Override
-    protected synchronized int implRead (ByteBuffer dst, long position)
+    public synchronized int read (ByteBuffer dst, long offset, long count)
     throws IOException {
-        long offset = (long) Math.floor( position / blockSize );
-        int skip = (int)( position % blockSize );
+        if (offset < 0) {
+            throw new IllegalArgumentException( "offset may not be negative" );
+        } else if (offset >= size) {
+            return -1;
+        }
 
-        long length = Math.min( dst.remaining(), this.size() - position );
-        int count = (int) Math.ceil( (length + skip) / blockSize );
-        int drop = (int)( (length + skip) % blockSize );
+        if (count < 0) {
+            throw new IllegalArgumentException( "count may not be negative" );
+        } else if (count == 0) {
+            return 0;
+        } else if (count > size - offset) {
+            throw new IllegalArgumentException( "cannot read past end of volume" );
+        }
+
+        if (dst == null) {
+            throw new IllegalArgumentException( "dst may not be null" );
+        } else if (dst.remaining() < count) {
+            throw new IllegalArgumentException( "dst buffer is not large enough" );
+        }
+
+
+        long blockOffset = (long) Math.floor( offset / blockSize );
+        int skip = (int)( offset % blockSize );
+
+        long countAdj = Math.min( count, this.size() - offset );
+        int blockCount = (int) Math.ceil( (countAdj + skip) / blockSize );
+        int drop = (int)( (countAdj + skip) % blockSize );
 
         if (log.isTraceEnabled()) {
             log.trace( String.format(
-                    "read requested pos=%d length=%d (%d)"
-                        + " offset=%d count=%d skip=%d drop=%d",
-                    position, length, dst.remaining(),
-                    offset, count, skip, drop
+                    "read requested offset=%d count=%d count_adj=%d"
+                        + " blockOffset=%d blockCount=%d skip=%d drop=%d",
+                    offset, count, countAdj, blockOffset, blockCount, skip, drop
                 ));
         }
+
 
         // if the target buffer has an array (which UsbMassStorageDriver
         // requires), and we don't need to buffer the read to compensate
         // for an unaligned boundary, then read directly into the target
         if (dst.hasArray() && skip == 0
-                && (drop == 0 || count > BUFFER_BLOCKS) ) {
+                && (drop == 0 || blockCount > BUFFER_BLOCKS) ) {
 
             // if the last block is partial but we're not close
             // enough to the end of the target buffer to reach it in a
             // single buffered read, avoid reading the last block
-            if (drop != 0) count--;
+            if (drop != 0) blockCount--;
 
             // don't read too much at once
-            count = Math.min( count, MAX_READ_BLOCKS );
+            blockCount = Math.min( blockCount, MAX_READ_BLOCKS );
 
             if (log.isTraceEnabled()) {
                 log.trace( String.format(
-                        "reading directly offset=0x%08x count=0x%04x",
-                        offset, count
+                        "reading directly blockOffset=0x%08x blockCount=0x%04x",
+                        blockOffset, blockCount
                     ));
             }
 
-            rawRead( dst, offset, count );
-            return count * blockSize;
+            rawRead( dst, blockOffset, blockCount );
+            return blockCount * blockSize;
         }
 
         buffer.clear();
 
         // don't read more than will fit in the read buffer
-        if (count > BUFFER_BLOCKS) {
-            count = BUFFER_BLOCKS;
-            drop  = 0;
+        if (blockCount > BUFFER_BLOCKS) {
+            blockCount = BUFFER_BLOCKS;
+            drop = 0;
         }
 
         if (log.isTraceEnabled()) {
             log.trace( String.format(
-                    "reading indirectly offset=0x%08x count=0x%04x",
-                    offset, count
+                    "reading indirectly blockOffset=0x%08x blockCount=0x%04x",
+                    blockOffset, blockCount
                 ));
         }
 
-        rawRead( buffer, offset, count );
+        rawRead( buffer, blockOffset, blockCount );
 
         buffer.flip();
         buffer.position( skip );
@@ -214,15 +232,7 @@ extends SimpleFileChannel {
         return buffer.position() - skip;
     }
 
-    @Override
-    protected int implWrite (ByteBuffer src, long position)
-    throws IOException {
-        // TODO: implement
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    protected void implCloseChannel()
+    public void close()
     throws IOException {
         driver.close();
     }

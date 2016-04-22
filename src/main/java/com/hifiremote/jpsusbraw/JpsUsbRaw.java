@@ -150,14 +150,14 @@ extends SimpleFileChannel {
         return new JpsUsbRaw( device );
     }
 
-    private final UsbMassStorageChannel storage;
+    private final ScsiDriver storage;
     private final int partOffset, partLength;
     private final int fileOffset, fileLength;
     private final long fileOffsetAbs;
 
     private JpsUsbRaw (UsbDevice device)
     throws IOException {
-        storage = new UsbMassStorageChannel( device, true );
+        storage = new ScsiDriver( new UsbMassStorageDriver( device, true ) );
 
         log.debug( "reading partition table" );
 
@@ -387,13 +387,24 @@ extends SimpleFileChannel {
     @Override
     protected synchronized int implRead (ByteBuffer dst, long position)
     throws IOException {
-        return storage.read( dst, position + fileOffsetAbs );
+        long offset = position + fileOffsetAbs;
+        long count = Math.min( dst.remaining(), fileLength - position );
+
+        if (log.isTraceEnabled()) {
+            log.trace( String.format(
+                    "read requested offset=%d count=%d volOffset=%d volCount=%d",
+                    position, dst.remaining(), offset, count
+                ));
+        }
+
+        return storage.read( dst, offset, count );
     }
 
     @Override
     protected int implWrite (ByteBuffer src, long position)
     throws IOException {
-        return storage.write( src, position + fileOffsetAbs );
+        // TODO: implement
+        throw new UnsupportedOperationException();
     }
 
     @Override
