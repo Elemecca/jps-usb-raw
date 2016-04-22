@@ -168,6 +168,7 @@ class Main {
 
 
             if (verify) {
+                System.out.println( "read completed, beginning verification..." );
                 long completed = 0;
 
                 if (channel.size() != settings.size()) {
@@ -182,7 +183,7 @@ class Main {
                 channel.position( 0 );
                 settings.position( 0 );
 
-                ByteBuffer expected = ByteBuffer.allocate( settings.blockSize() * 64 );
+                ByteBuffer expected = ByteBuffer.allocate( settings.blockSize() * 32 );
                 ByteBuffer actual   = ByteBuffer.allocate( expected.capacity() );
 
                 while (completed < settings.size()) {
@@ -206,8 +207,10 @@ class Main {
                         System.exit( 5 );
                     }
 
-                    completed += expected.position();
+                    completed += expected.limit();
                 }
+
+                System.out.println( "verification completed successfully" );
             }
 
             channel.close();
