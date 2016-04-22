@@ -381,7 +381,8 @@ implements Closeable {
         } catch (UsbException caught) {
             log.error( "data IRP failed", caught );
             throw new IOException(
-                    "error " + (in ? "receiving" : "sending") + " data",
+                    "error " + (in ? "receiving" : "sending")
+                        + " data: " + caught.getMessage(),
                     caught
                 );
         }
@@ -440,7 +441,9 @@ implements Closeable {
         }
 
         // check dCSWTag matches value from CDW
-        if (csw.getInt( 4 ) != tag) {
+        // some UEI devices only copy the low-order two bytes, so accept that
+        int cswTag = csw.getInt( 4 );
+        if (cswTag != tag && cswTag != (tag & 0x0000FFFF)) {
             log.warn( String.format(
                     "CSW tag mismatch: expected %08x got %08x",
                     tag, csw.getInt( 4 )

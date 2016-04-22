@@ -151,8 +151,18 @@ extends SimpleFileChannel {
         long offset = (long) Math.floor( position / blockSize );
         int skip = (int)( position % blockSize );
 
-        int count = (int) Math.ceil( (dst.remaining() + skip) / blockSize );
-        int drop = (int)( (dst.remaining() + skip) % blockSize );
+        long length = Math.min( dst.remaining(), this.size() - position );
+        int count = (int) Math.ceil( (length + skip) / blockSize );
+        int drop = (int)( (length + skip) % blockSize );
+
+        if (log.isTraceEnabled()) {
+            log.trace( String.format(
+                    "read requested pos=%d length=%d (%d)"
+                        + " offset=%d count=%d skip=%d drop=%d",
+                    position, length, dst.remaining(),
+                    offset, count, skip, drop
+                ));
+        }
 
         // if the target buffer has an array (which UsbMassStorageDriver
         // requires), and we don't need to buffer the read to compensate
@@ -168,14 +178,31 @@ extends SimpleFileChannel {
             // don't read too much at once
             count = Math.min( count, MAX_READ_BLOCKS );
 
+            if (log.isTraceEnabled()) {
+                log.trace( String.format(
+                        "reading directly offset=0x%08x count=0x%04x",
+                        offset, count
+                    ));
+            }
+
             rawRead( dst, offset, count );
-            return count;
+            return count * blockSize;
         }
 
         buffer.clear();
 
         // don't read more than will fit in the read buffer
-        count = Math.min( count, BUFFER_BLOCKS );
+        if (count > BUFFER_BLOCKS) {
+            count = BUFFER_BLOCKS;
+            drop  = 0;
+        }
+
+        if (log.isTraceEnabled()) {
+            log.trace( String.format(
+                    "reading indirectly offset=0x%08x count=0x%04x",
+                    offset, count
+                ));
+        }
 
         rawRead( buffer, offset, count );
 
