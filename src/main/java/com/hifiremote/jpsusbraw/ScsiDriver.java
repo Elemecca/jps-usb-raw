@@ -185,8 +185,10 @@ class ScsiDriver {
         int skip = (int)( offset % blockSize );
 
         long countAdj = Math.min( count, this.size() - offset );
-        int blockCount = (int) Math.ceil( (countAdj + skip) / blockSize );
+        int blockCount = (int) Math.ceil(
+                (double)(countAdj + skip) / (double)blockSize );
         int drop = (int)( (countAdj + skip) % blockSize );
+        if (drop != 0) drop = blockSize - drop;
 
         if (log.isTraceEnabled()) {
             log.trace( String.format(
