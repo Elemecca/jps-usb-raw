@@ -311,7 +311,7 @@ implements Closeable {
 
         if (data != null) {
             // store length in dCBWDataTransferLength
-            cbw.putInt( 8, data.remaining() );
+            cbw.putInt( 8, dataLength );
 
             // store direction in bmCBWFlags
             cbw.put( 12, (byte)(in ? 0x80 : 0x00) );
@@ -319,7 +319,7 @@ implements Closeable {
             if (log.isTraceEnabled()) {
                 log.trace( String.format(
                         "requesting transfer %s of %d bytes",
-                        (in ? "IN" : "OUT"), data.remaining()
+                        (in ? "IN" : "OUT"), dataLength
                     ));
             }
         }
