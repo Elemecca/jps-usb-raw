@@ -25,6 +25,11 @@ import com.beust.jcommander.Parameter;
 import com.beust.jcommander.Parameters;
 import com.beust.jcommander.ParameterException;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilder;
+import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFactory;
+
 class Main {
     public static void main (String[] args) {
         (new Main()).run( args );
@@ -33,9 +38,9 @@ class Main {
     @Parameter( names="--help", help=true )
     private boolean help;
 
-    @Parameter( names={ "-d", "--debug" },
-            description="print extra debugging information" )
-    private boolean debug;
+    @Parameter( names={ "-v", "--verbose" },
+            description="numeric level of log output" )
+    private int verbose = 0;
 
     public void run (String[] args) {
         final JCommander cmd = new JCommander( this );
@@ -82,6 +87,8 @@ class Main {
             System.exit( 1 );
         }
 
+        setupLogging();
+
         try {
             cmdImpl.cmd = cmdArgs;
             cmdImpl.run();
@@ -93,10 +100,46 @@ class Main {
                 System.err.println( "an unknown error occurred: " + caught );
             }
 
-            if (debug) caught.printStackTrace( System.err );
+            if (verbose > 0)
+                caught.printStackTrace( System.err );
 
             System.exit( 2 );
         }
+    }
+
+    private void setupLogging() {
+        Level level;
+        if (verbose >= 3) {
+            level = Level.TRACE;
+        } else if (verbose >= 2) {
+            level = Level.DEBUG;
+        } else if (verbose >= 1) {
+            level = Level.INFO;
+        } else {
+            level = Level.ERROR;
+        }
+
+        ConfigurationBuilder<?> builder =
+            ConfigurationBuilderFactory.newConfigurationBuilder();
+
+        builder.setStatusLevel( Level.ERROR );
+        builder.setConfigurationName( "JpsUsbRaw" );
+
+        builder.add( builder.newAppender( "STDOUT", "Console" )
+                .add( builder.newLayout( "PatternLayout" )
+                        .addAttribute( "pattern",
+                                "%d{HH:mm:ss.SSSS} [%t] %-5level %c{1.}  %msg%n"
+                            )
+                    )
+            );
+
+        builder.add( builder.newRootLogger( Level.ERROR )
+                .add( builder.newAppenderRef( "STDOUT" ) )
+            );
+
+        builder.add( builder.newLogger( "com.hifiremote.jpsusbraw", level ));
+
+        Configurator.initialize( builder.build() );
     }
 
     private abstract class Command {
