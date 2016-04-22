@@ -25,6 +25,14 @@
     with the block device directly.
   </description>
 
+  <licenses>
+    <license>
+      <name>CC0 1.0 Universal</name>
+      <url>https://creativecommons.org/publicdomain/zero/1.0/</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
   <url>http://github.com/Elemecca/jps-usb-raw</url>
   <scm>
     <url>http://github.com/Elemecca/jps-usb-raw</url>
