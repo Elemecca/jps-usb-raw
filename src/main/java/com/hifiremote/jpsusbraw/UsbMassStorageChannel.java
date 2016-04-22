@@ -143,36 +143,37 @@ extends SimpleFileChannel {
         int count = (int) Math.ceil( (dst.remaining() + skip) / blockSize );
         int drop = (int)( (dst.remaining() + skip) % blockSize );
 
-        // if we're at the beginning or end of the target buffer
-        // and that boundary is not block-aligned, read a few
-        // blocks into an intermediate buffer so we can skip
-        // the unwanted partial block
-        if (skip != 0 || (drop != 0 && count < BUFFER_BLOCKS)) {
-            buffer.clear();
+        // if the target buffer has an array (which UsbMassStorageDriver
+        // requires), and we don't need to buffer the read to compensate
+        // for an unaligned boundary, then read directly into the target
+        if (dst.hasArray() && skip == 0
+                && (drop == 0 || count > BUFFER_BLOCKS) ) {
 
-            // don't read more than will fit in the read buffer
-            count = Math.min( count, BUFFER_BLOCKS );
+            // if the last block is partial but we're not close
+            // enough to the end of the target buffer to reach it in a
+            // single buffered read, avoid reading the last block
+            if (drop != 0) count--;
 
-            rawRead( buffer, offset, count );
+            // don't read too much at once
+            count = Math.min( count, MAX_READ_BLOCKS );
 
-            buffer.flip();
-            buffer.position( skip );
-            buffer.limit( buffer.limit() - drop );
-
-            dst.put( buffer );
-            return buffer.position() - skip;
+            rawRead( dst, offset, count );
+            return count;
         }
 
-        // otherwise, if the last block is partial but we're not close
-        // enough to the end of the target buffer to reach it in a
-        // single buffered read, avoid reading the last block
-        else if (drop != 0) count--;
+        buffer.clear();
 
-        // don't read too much at once
-        count = Math.min( count, MAX_READ_BLOCKS );
+        // don't read more than will fit in the read buffer
+        count = Math.min( count, BUFFER_BLOCKS );
 
-        rawRead( dst, offset, count );
-        return count * blockSize;
+        rawRead( buffer, offset, count );
+
+        buffer.flip();
+        buffer.position( skip );
+        buffer.limit( buffer.limit() - drop );
+
+        dst.put( buffer );
+        return buffer.position() - skip;
     }
 
     @Override

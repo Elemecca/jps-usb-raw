@@ -230,6 +230,9 @@ implements Closeable {
         if (data != null && dataLength > data.remaining())
             throw new IllegalArgumentException("data buffer too small");
 
+        if (data != null && !data.hasArray())
+            throw new IllegalArgumentException("data buffer must be array-backed");
+
         ByteBuffer cbw = ByteBuffer.allocate( 31 );
         cbw.order( ByteOrder.LITTLE_ENDIAN );
 
