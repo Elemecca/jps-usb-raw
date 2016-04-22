@@ -158,25 +158,12 @@ class Main {
             channel.truncate( 0 );
 
 
-            /*
             long offset = 0;
             long length = settings.size();
             while (length > 0) {
                 long count = channel.transferFrom( settings, offset, length );
                 offset += count;
                 length -= count;
-            }
-            */
-
-            settings.position( 0 );
-            ByteBuffer buffer = ByteBuffer.allocate( settings.blockSize() * 64 );
-            while (-1 != settings.read( buffer )) {
-                buffer.flip();
-
-                while (buffer.remaining() > 0)
-                    channel.write( buffer );
-
-                buffer.clear();
             }
 
 
