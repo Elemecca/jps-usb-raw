@@ -212,47 +212,7 @@ class Main {
 
             if (verify) {
                 System.out.println( "read completed, beginning verification..." );
-                long completed = 0;
-
-                if (channel.size() != settings.size()) {
-                    System.err.println( "verification failed:"
-                            + " file is " + channel.size()
-                            + " bytes, but settings are "
-                            + settings.size() + " bytes"
-                        );
-                    System.exit( 5 );
-                }
-
-                channel.position( 0 );
-                settings.position( 0 );
-
-                ByteBuffer expected = ByteBuffer.allocate( settings.blockSize() * 32 );
-                ByteBuffer actual   = ByteBuffer.allocate( expected.capacity() );
-
-                while (completed < settings.size()) {
-                    expected.clear();
-                    actual.clear();
-
-                    while (expected.remaining() > 0
-                            && -1 != settings.read( expected ));
-                    expected.flip();
-
-                    actual.limit( expected.limit() );
-                    while (actual.remaining() > 0
-                            && -1 != channel.read( actual ));
-                    actual.flip();
-
-                    if (0 != expected.compareTo( actual )) {
-                        System.err.println( "verification failed:"
-                                + " contents differ at byte "
-                                + (completed + expected.position())
-                            );
-                        System.exit( 5 );
-                    }
-
-                    completed += expected.limit();
-                }
-
+                verify( settings, channel, settings.blockSize() );
                 System.out.println( "verification completed successfully" );
             }
 
@@ -269,5 +229,50 @@ class Main {
         }
 
         return JpsUsbRaw.open( devices.get( 0 ) );
+    }
+
+    private void verify (FileChannel chanExpected,
+            FileChannel chanActual, int blockSize)
+    throws IOException {
+        long completed = 0;
+
+        if (chanActual.size() != chanExpected.size()) {
+            System.err.println( "verification failed:"
+                    + " file is " + chanActual.size()
+                    + " bytes, but chanExpected are "
+                    + chanExpected.size() + " bytes"
+                );
+            System.exit( 5 );
+        }
+
+        chanActual.position( 0 );
+        chanExpected.position( 0 );
+
+        ByteBuffer expected = ByteBuffer.allocate( blockSize * 32 );
+        ByteBuffer actual   = ByteBuffer.allocate( expected.capacity() );
+
+        while (completed < chanExpected.size()) {
+            expected.clear();
+            actual.clear();
+
+            while (expected.remaining() > 0
+                    && -1 != chanExpected.read( expected ));
+            expected.flip();
+
+            actual.limit( expected.limit() );
+            while (actual.remaining() > 0
+                    && -1 != chanActual.read( actual ));
+            actual.flip();
+
+            if (0 != expected.compareTo( actual )) {
+                System.err.println( "verification failed:"
+                        + " contents differ at byte "
+                        + (completed + expected.position())
+                    );
+                System.exit( 5 );
+            }
+
+            completed += expected.limit();
+        }
     }
 }
