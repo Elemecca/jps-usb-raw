@@ -95,12 +95,8 @@ extends SimpleFileChannel {
         else return devices;
     }
 
-    /**
-     * @throws IllegalStateException if the path given no longer refers
-     *                               to a valid and supported device
-     */
-    public static JpsUsbRaw open (DevicePath path)
-    throws UsbException, IOException {
+    static UsbDevice getDevice (DevicePath path)
+    throws UsbException {
         // walk the USB hub tree to find the device matchng the given path
         byte[] pathArray = path.toArray();
         UsbDevice device = UsbHostManager.getUsbServices().getRootUsbHub();
@@ -138,12 +134,34 @@ extends SimpleFileChannel {
                 );
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug( String.format(
-                    "opening USB device vnd=%04x dev=%04x path=%s",
-                    desc.idVendor(), desc.idProduct(),
-                    path.toString()
-                ));
+        return device;
+    }
+
+
+    /**
+     * @throws IllegalStateException if the path given no longer refers
+     *                               to a valid and supported device
+     */
+    public static JpsUsbRaw open (DevicePath path)
+    throws IOException {
+        UsbDevice device;
+
+        try {
+            device = getDevice( path );
+
+            if (log.isDebugEnabled()) {
+                UsbDeviceDescriptor desc = device.getUsbDeviceDescriptor();
+                log.debug( String.format(
+                        "opening USB device vnd=%04x dev=%04x path=%s",
+                        desc.idVendor(), desc.idProduct(),
+                        path.toString()
+                    ));
+            }
+        } catch (UsbException caught) {
+            throw new IOException(
+                    "error locating device: " + caught.getMessage(),
+                    caught
+                );
         }
 
         // actually open the thing
