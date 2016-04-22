@@ -86,8 +86,23 @@ class ScsiDriver {
     private void sendCommand (ByteBuffer command,
             ByteBuffer data, int dataLength, boolean in)
     throws IOException {
-        boolean ok = driver.sendCommand( command, data, dataLength, in );
-        if (ok) return;
+        command.mark();
+        data.mark();
+
+        for (int retry = 2; retry >= 0; retry--) try {
+            command.reset();
+            data.reset();
+
+            boolean ok = driver.sendCommand( command, data, dataLength, in );
+            if (ok) return;
+
+            break;
+        } catch (UsbMassStorageDriver.RecoverableException caught) {
+            log.warn( "caught recoverable USBMS error", caught );
+
+            if (retry <= 0) throw caught;
+            else continue;
+        }
 
         log.trace( "command failed, sending REQUEST SENSE" );
         ByteBuffer sense = ByteBuffer.allocate( 252 );

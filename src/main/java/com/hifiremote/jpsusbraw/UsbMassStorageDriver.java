@@ -50,11 +50,20 @@ implements Closeable {
 
     private static final long IRP_TIMEOUT_MS = 5000;
 
+    public static class RecoverableException
+    extends IOException {
+        RecoverableException (String message) {
+            super( message );
+        }
+    }
+
     private final UsbDevice device;
     private final UsbInterface iface;
     private final UsbPipe pipeIn;
     private final UsbPipe pipeOut;
     private final Random rand = new Random();
+
+    private boolean needResetRecovery = false;
 
     UsbMassStorageDriver (final UsbDevice device, final boolean force)
     throws IOException {
@@ -206,6 +215,8 @@ implements Closeable {
 
     private void clearPipe (UsbPipe pipe)
     throws UsbException {
+        pipe.abortAllSubmissions();
+
         submitDeviceIrp( device.createUsbControlIrp(
                 (byte)( UsbConst.REQUESTTYPE_TYPE_STANDARD
                     | UsbConst.REQUESTTYPE_DIRECTION_OUT
@@ -253,6 +264,22 @@ implements Closeable {
     public boolean sendCommand (ByteBuffer command,
             ByteBuffer data, int dataLength, boolean in)
     throws IOException {
+        if (needResetRecovery) {
+            log.trace( "performing needed reset recovery" );
+
+            try {
+                this.resetRecovery();
+                needResetRecovery = false;
+            } catch (UsbException caught) {
+                log.error( "reset recovery failed", caught );
+                throw new IOException(
+                        "USBMS Bulk-Only reset recovery was needed"
+                            + " and failed: " + caught.getMessage(),
+                        caught
+                    );
+            }
+        }
+
         log.trace( "preparing to send command" );
 
         if (command == null)
@@ -351,8 +378,8 @@ implements Closeable {
             log.warn( "device STALLed on CBW" );
             // BBB 6.6.1 - the CBW is not valid
             // BBB 5.3.1 - host must perform Reset Recovery
-            // TODO: implement async reset recovery
-            throw new UnsupportedOperationException( "Reset Recovery not yet implemented" );
+            needResetRecovery = true;
+            throw new IOException( "error sending command", caught );
         } catch (UsbException caught) {
             log.error( "CBW IRP failed", caught );
             throw new IOException(
@@ -412,8 +439,8 @@ implements Closeable {
             } catch (UsbStallException caught2) {
                 log.warn( "device STALLed on second CSW read" );
                 // BBB fig 2 - host must perform Reset Recovery
-                // TODO: implement async reset recovery
-                throw new UnsupportedOperationException( "Reset Recovery not yet implemented" );
+                needResetRecovery = true;
+                throw new RecoverableException( "device requires bulk-only reset" );
             } catch (UsbException caught2) {
                 log.error( "second CSW IRP failed", caught );
                 throw new IOException(
