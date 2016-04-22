@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Random;
 
 import javax.usb.UsbConfiguration;
+import javax.usb.UsbControlIrp;
 import javax.usb.UsbConst;
 import javax.usb.UsbDevice;
 import javax.usb.UsbEndpoint;
@@ -35,6 +36,8 @@ import org.apache.logging.log4j.LogManager;
 class UsbMassStorageDriver
 implements Closeable {
     private static final Logger log = LogManager.getLogger();
+
+    private static final long IRP_TIMEOUT_MS = 5000;
 
     private final UsbDevice device;
     private final UsbInterface iface;
@@ -167,9 +170,32 @@ implements Closeable {
         log.debug( "successfully initialized USB Mass Storage device" );
     }
 
+
+    private void submitIrp (UsbPipe pipe, UsbIrp irp)
+    throws UsbException {
+        pipe.asyncSubmit( irp );
+        irp.waitUntilComplete( IRP_TIMEOUT_MS );
+
+        if (!irp.isComplete()) {
+            throw new UsbException(
+                    "USB IRP timed out after " + IRP_TIMEOUT_MS + " ms" );
+        }
+    }
+
+    private void submitDeviceIrp (UsbControlIrp irp)
+    throws UsbException {
+        device.asyncSubmit( irp );
+        irp.waitUntilComplete( IRP_TIMEOUT_MS );
+
+        if (!irp.isComplete()) {
+            throw new UsbException(
+                    "USB IRP timed out after " + IRP_TIMEOUT_MS + " ms" );
+        }
+    }
+
     private void clearPipe (UsbPipe pipe)
     throws UsbException {
-        device.syncSubmit( device.createUsbControlIrp(
+        submitDeviceIrp( device.createUsbControlIrp(
                 (byte)( UsbConst.REQUESTTYPE_TYPE_STANDARD
                     | UsbConst.REQUESTTYPE_DIRECTION_OUT
                     | UsbConst.REQUESTTYPE_RECIPIENT_ENDPOINT ),
@@ -183,7 +209,7 @@ implements Closeable {
 
     private void resetBulkOnly()
     throws UsbException {
-        device.syncSubmit( device.createUsbControlIrp(
+        submitDeviceIrp( device.createUsbControlIrp(
                 (byte)( UsbConst.REQUESTTYPE_TYPE_CLASS
                     | UsbConst.REQUESTTYPE_DIRECTION_OUT
                     | UsbConst.REQUESTTYPE_RECIPIENT_INTERFACE),
@@ -309,7 +335,7 @@ implements Closeable {
 
         try {
             log.trace( "sending CBW IRP" );
-            pipeOut.syncSubmit( cbwIrp );
+            submitIrp( pipeOut, cbwIrp );
         } catch (UsbStallException caught) {
             log.warn( "device STALLed on CBW" );
             // BBB 6.6.1 - the CBW is not valid
@@ -326,7 +352,7 @@ implements Closeable {
 
         if (dataIrp != null) try {
             log.trace( "sending data IRP" );
-            (in ? pipeIn : pipeOut).syncSubmit( dataIrp );
+            submitIrp( in ? pipeIn : pipeOut, dataIrp );
         } catch (UsbStallException caught) {
             log.warn( "device STALLed on data; continuing to read CSW" );
             // BBB 6.7.2 host 3 - clear the Bulk-In pipe and read CSW
@@ -351,7 +377,7 @@ implements Closeable {
 
         try {
             log.trace( "sending CSW IRP" );
-            pipeIn.syncSubmit( cswIrp );
+            submitIrp( pipeIn, cswIrp );
         } catch (UsbStallException caught) {
             log.warn( "device STALLed on first CSW read, retrying" );
             try {
@@ -370,7 +396,7 @@ implements Closeable {
             cswIrp.setAcceptShortPacket( true );
 
             try {
-                pipeIn.syncSubmit( cswIrp );
+                submitIrp( pipeIn, cswIrp );
             } catch (UsbStallException caught2) {
                 log.warn( "device STALLed on second CSW read" );
                 // BBB fig 2 - host must perform Reset Recovery
