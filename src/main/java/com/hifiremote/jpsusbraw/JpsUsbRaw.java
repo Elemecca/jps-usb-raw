@@ -369,6 +369,10 @@ extends SimpleFileChannel {
         return fileLength;
     }
 
+    public int blockSize() {
+        return storage.blockSize();
+    }
+
     @Override
     protected synchronized int implRead (ByteBuffer dst, long position)
     throws IOException {

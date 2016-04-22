@@ -53,10 +53,29 @@
       <artifactId>log4j-core</artifactId>
       <version>2.5</version>
     </dependency>
+
+    <dependency>
+      <groupId>com.beust</groupId>
+      <artifactId>jcommander</artifactId>
+      <version>1.48</version>
+    </dependency>
   </dependencies>
 
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>2.4</version>
+
+        <configuration>
+          <archive>
+            <manifest>
+              <mainClass>com.hifiremote.jpsusbraw.Main</mainClass>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
 
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
