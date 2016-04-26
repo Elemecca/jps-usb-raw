@@ -9,20 +9,23 @@
   <packaging>jar</packaging>
   <version>0.1-SNAPSHOT</version>
 
-  <name>JP1 USB Raw Interface</name>
+  <name>UEI Remotes Raw USB Interface</name>
   <description>
-    Provides an interface for manipulating the settings file on
-    univeral remotes manufactured by UEI which have USB interfaces,
-    such as the URC-6440 and OARUSB04G. UEI programmable remotes are
-    colloquially referred to as "JP1 remotes" as their older models
-    were programmed via a 6-pin header labelled JP1. The newer models
-    supported by this project expose a USB mass storage device with a
-    FAT12 filesytem containing the binary settings blob as a file.
-    Unfortunately the remote does not implement FAT completely or
-    correctly and therefore only works with the Windows implementation.
-    This project allows remotes with that issue to be programmed on
-    Linux by bypassing the kernel's FAT implementation and interacting
-    with the block device directly.
+    JpsUsbRaw is a library and tool for manipulating the settings file
+    on UEI universal remotes that have a USB interface.
+
+    Some universal remote controls manufactured by UEI have a USB port
+    for configuration, notably the OARUSB04G in the US and the URC-6440
+    in the EU. These remotes expose a FAT12 volume via USB Mass Storage
+    containing a single fixed-size file which is an image of the onboard
+    configuration EEPROM. Unfortunately these devices don't implement
+    the USB Mass Storage and FAT standards entirely correctly. While
+    they work just fine on Windows, certain write operations fail under
+    Linux and OSX. This project interacts with the remote directly using
+    javax.usb and provides implementations of USB Mass Storage and the
+    FAT file system tailored to the behavior of UEI devices. It can
+    therefore be used to read or write the settings file even on
+    platforms whose native implementations aren't compatible.
   </description>
 
   <licenses>
@@ -39,6 +42,16 @@
     <connection>scm:git:git://github.com/Elemecca/jps-usb-raw.git</connection>
     <developerConnection>scm:git:ssh://github.com/Elemecca/jps-usb-raw.git</developerConnection>
   </scm>
+
+  <developers>
+    <developer>
+      <name>Sam Hanes</name>
+      <email>sam@maltera.com</email>
+      <url>http://blog.maltera.com/</url>
+      <timezone>America/Los_Angeles</timezone>
+    </developer>
+  </developers>
+
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -71,6 +84,7 @@
 
   <build>
     <plugins>
+
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-jar-plugin</artifactId>
@@ -87,6 +101,32 @@
 
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <version>3.0.0</version>
+
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals> <goal>jar-no-fork</goal> </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>2.10.3</version>
+
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals> <goal>jar</goal> </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
         <version>2.4.3</version>
 
@@ -97,9 +137,25 @@
         <executions>
           <execution>
             <phase>package</phase>
-            <goals>
-              <goal>shade</goal>
-            </goals>
+            <goals> <goal>shade</goal> </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-gpg-plugin</artifactId>
+        <version>1.6</version>
+
+        <configuration>
+          <!-- Sam Hanes <sam@maltera.com> -->
+          <keyname>7EB4F2D2C84127D778224445BE2E6CB5DC3FD519</keyname>
+        </configuration>
+
+        <executions>
+          <execution>
+            <phase>verify</phase>
+            <goals> <goal>sign</goal> </goals>
           </execution>
         </executions>
       </plugin>
